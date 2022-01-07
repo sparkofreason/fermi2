@@ -1,0 +1,24 @@
+#
+# $Header: /nfs/slac/g/glast/ground/cvs/Likelihood/pfiles/gtmodel.par,v 1.12 2014/10/01 15:32:35 jchiang Exp $
+#
+srcmaps,fr,a,"10-20gev_binned_diffuse_srcmaps.fits",,,"Source maps (or counts map) file"
+srcmdl,fr,a,"diffuse_only.xml",,,"Source model file"
+outfile,f,a,"10-20gev_binned_diffuse_model_map.fits",,,"Output file"
+
+irfs,s,a,"P8R3_ULTRACLEANVETO_V3",,,"Response functions"
+evtype,i,h,INDEF,,,"Event type selections"
+expcube,f,a,"lat_ultracleanveto_front_zmax90_10-20gev_ltcube.fits",,,"Exposure cube"
+bexpmap,f,a,"lat_ultracleanveto_front_zmax90_10-20gev_expcube.fits",,,"Binned exposure map"
+convol,b,h,yes,,,"Perform convolution with psf"
+resample,b,h,yes,,,"Resample input counts map for convolution"
+rfactor,i,h,2,,,"Resampling factor"
+outtype,s,h,"CMAP",CCUBE|CMAP,,"Output type"
+psfcorr,b,h,yes,,,"Apply psf integral corrections"
+phased_expmap,f,h,"none",,,"Exposure map with phase-dependent corrections"
+edisp_bins,i,h,0,,,"Number of bins to consider energy dispersion for"
+
+chatter,i,h,2,0,4,Output verbosity
+clobber,        b, h, yes, , , "Overwrite existing output files"
+debug,          b, h, no, , , "Activate debugging mode"
+gui,            b, h, no, , , "GUI mode activated"
+mode,           s, h, "ql", , , "Mode of automatic parameters"

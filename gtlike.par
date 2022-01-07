@@ -1,0 +1,47 @@
+#
+# $Header: /nfs/slac/g/glast/ground/cvs/ScienceTools-scons/Likelihood/pfiles/gtlike.par,v 1.17 2016/03/30 23:06:53 echarles Exp $
+#
+# parameters common to binned and unbinned
+#
+irfs,s,a,"CALDB",,,"Response functions to use"
+expcube,f,a,"lat_source_zmax90_gt1gev_ltcube.fits",,,"Exposure hypercube file"
+srcmdl,fr,a,"allsky_input_model.xml",,,"Source model file"
+sfile,f,h,"none",,,"Source model output file"
+check_fit,b,h,yes,,,"Issue warnings regarding fit?"
+results,f,h,"results.dat",,,"Output file for fit results"
+specfile,f,h,"counts_spectra.fits",,,"Output file for counts spectra"
+#
+# choice of objective function and optimizer
+#
+statistic,s,a,"BINNED",BINNED|UNBINNED,,"Statistic to use"
+optimizer,s,a,"NEWMINUIT",DRMNFB|NEWMINUIT|MINUIT|DRMNGB|LBFGS,,"Optimizer"
+ftol,r,h,1e-3,,,"Fit tolerance"
+toltype,s,h,"ABS","ABS|REL",,"Fit tolerance convergence type (absolute vs relative)"
+tsmin,b,h,no,,,Re-optimize for TS fits?
+save,b,h,yes,,,Write output files?
+refit,b,h,no,,,"Allow for refitting?"
+#
+# unbinned
+#
+evfile,f,a,"none",,,"Event file"
+evtable,s,h,"EVENTS",,,"Event table extension"
+scfile,f,a,"none",,,"Spacecraft file"
+sctable,s,h,"SC_DATA",,,"Spacecraft table extension"
+expmap,f,a,"none",,,"Unbinned exposure map"
+plot,b,h,no,,,"Plot unbinned counts spectra?"
+#
+# binned
+#
+cmap,f,a,"3C279_binned_srcmaps.fits",,,"Counts map file"
+bexpmap,f,a,"3C279_binned_allsky_expcube.fits",,,"Binned exposure map"
+wmap,f,h,"none",,,"Likelihood weights map"
+psfcorr,b,h,yes,,,"apply psf integral corrections"
+phased_expmap,f,h,"none",,,"Exposure map with phase-dependent corrections"
+edisp,b,h,no,,,"Apply energy dispersion?"
+edisp_bins,i,h,0,,,"Number of bins to consider energy dispersion for"
+
+chatter,i,h,2,0,4,Output verbosity
+clobber,        b, h, yes, , , "Overwrite existing output files"
+debug,          b, h, no, , , "Activate debugging mode"
+gui,            b, h, no, , , "GUI mode activated"
+mode,           s, h, "ql", , , "Mode of automatic parameters"
