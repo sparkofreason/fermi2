@@ -204,4 +204,4 @@ def inv_haar_level(j, a, hs, vs, ds):
     hsp[j] = hs[j]
     vsp[j] = vs[j]
     dsp[j] = ds[j]
-    return tipsh.inv_haar_sphere(ap, hsp, vsp, dsp)
+    return inv_haar_sphere(ap, hsp, vsp, dsp)
