@@ -1,3 +1,4 @@
+import itertools
 import math
 import numpy
 import rpy2
@@ -192,3 +193,15 @@ def inv_haar(a, hs, vs, ds):
 
 def inv_haar_sphere(a, hs, vs, ds):
     return unspherify(inv_haar(a, hs, vs, ds))
+
+# I'm missing something here, seems like this should be a lot faster
+def inv_haar_level(j, a, hs, vs, ds):
+    zs = numpy.zeros(a.shape)
+    hsp = list(itertools.repeat(zs, len(hs)))
+    vsp = list(itertools.repeat(zs, len(vs)))
+    dsp = list(itertools.repeat(zs, len(ds)))
+    ap = zs
+    hsp[j] = hs[j]
+    vsp[j] = vs[j]
+    dsp[j] = ds[j]
+    return tipsh.inv_haar_sphere(ap, hsp, vsp, dsp)
