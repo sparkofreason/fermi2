@@ -1,3 +1,5 @@
+import gc
+import itertools
 import math
 import multiprocessing
 import numpy
@@ -129,8 +131,7 @@ def poisson_tail(x, mu):
     p[right] = stats.ppois(x[right], mu[right], lower_tail=False)
     return p
 
-
-def haar_threshold(counts, model, alpha, jmin=0, fwer=None):
+def skellam_inputs(counts, model, alpha, jmin=0, fwer=None):
     a_counts = numpy.copy(counts)
     a_model = numpy.copy(model)
 
@@ -138,17 +139,8 @@ def haar_threshold(counts, model, alpha, jmin=0, fwer=None):
 
     J = int(math.ceil(math.log(max(rows, cols), 2)))
 
-    hs = []
-    vs = []
-    ds = []
-
-    p = multiprocessing.Pool(2)
-
     for j in range(J - 1, jmin - 1, -1):
-        f = 2 ** (J - j - 1)
-
-        print(J, j, f, "******************************")
-
+        f = 2 ** (J - j)
         if fwer == "sidak":
             alpha_j = 1 - (1 - alpha) ** (1 / (2 ** (2 * j)))
         elif fwer == "bonferroni":
@@ -156,53 +148,69 @@ def haar_threshold(counts, model, alpha, jmin=0, fwer=None):
         else:
             alpha_j = alpha
 
-        print("alpha_j", alpha_j)
-
         print("sums")
-        sums_counts = haar_sums_j(J, j, a_counts)
-        a_counts, h_counts, v_counts, d_counts = haar_1(sums_counts)
+        a_counts, h_counts, v_counts, d_counts = haar_1(haar_sums_j(J, j, a_counts))
 
         sums_model = haar_sums_j(J, j, a_model)
         a_model, h_model, v_model, d_model = haar_1(sums_model)
 
         (h1, h2), (v1, v2), (d1, d2) = sums_model
+        yield (h_counts, h_model, h1, h2, alpha_j, j, "Horizontal")
+        del h1, h2, h_counts, h_model
+        yield (v_counts, v_model, v1, v2, alpha_j, j, "Vertical")
+        del v1, v2, v_counts, v_model
+        yield (d_counts, d_model, d1, d2, alpha_j, j, "Diagonal")
+        del d1, d2, d_counts, d_model
+        print("Collected", gc.collect()) # Not freeing memory
+    yield (a_counts, a_model, alpha_j)
 
-        hp = p.apply_async(skellam_tail, (h_counts, h1, h2))
-        vp = p.apply_async(skellam_tail, (v_counts, v1, v2))
-        dp = p.apply_async(skellam_tail, (d_counts, d1, d2))
+def threshold1_impl(k, k_model, mu1, mu2, alpha_j, j, direction):
+    print(direction, j, "******************************")
+    print("alpha_j", alpha_j)
+    p = skellam_tail(k, mu1, mu2)
+    mask = p < alpha_j/2
+    k_model[mask] = k[mask]
+    return k_model
 
-        print("h threshold")
-        h_mask = hp.get() < alpha_j / 2
-        h_model[h_mask] = h_counts[h_mask]
+def threshold1(args):
+    if (len(args) == 7):
+        return threshold1_impl(*args)
+    else:
+        a_counts, a_model, alpha_j = args
+        ap = poisson_tail(a_counts, a_model)
+        a_mask = ap < alpha_j / 2
+        a_model[a_mask] = a_counts[a_mask]
+        return a_model
 
-        print("v threshold")
-        v_mask = vp.get() < alpha_j / 2
-        v_model[v_mask] = v_counts[v_mask]
+def chunked_iterable(iterable, size):
+    it = iter(iterable)
+    while True:
+        chunk = tuple(itertools.islice(it, size))
+        if not chunk:
+            break
+        yield chunk
 
-        print("d threshold")
-        d_mask = dp.get() < alpha_j / 2
-        d_model[d_mask] = d_counts[d_mask]
+def haar_threshold(counts, model, alpha, jmin=0, fwer=None):
+    hs = []
+    vs = []
+    ds = []
 
-        hs.append(h_model)
-        vs.append(v_model)
-        ds.append(d_model)
+    p = multiprocessing.Pool(2)
 
-        print(
-            j,
-            "-> Rejected",
-            h_model[h_mask].size,
-            v_model[v_mask].size,
-            d_model[d_mask].size,
-        )
+    args = skellam_inputs(counts, model, alpha, jmin, fwer)
+    ks = p.imap(threshold1, args, 1)
+    p.close()
+    
+    for k in chunked_iterable(ks, 3):
+        if (len(k) == 3):
+            hs.append(k[0])
+            vs.append(k[1])
+            ds.append(k[2])
+        else:
+            a = k[0]
 
-    ap = poisson_tail(2 * f * a_counts, 2 * f * a_model)
-    a_mask = ap < alpha_j / 2
-    ar = a_counts[a_mask]
-    a_model[a_mask] = ar
 
-    print("Approximation rejected:", ar.size)
-
-    return a_model, hs, vs, ds
+    return a, hs, vs, ds
 
 
 def haar_threshold_sphere(counts, model, alpha, jmin=0, fwer=None):
