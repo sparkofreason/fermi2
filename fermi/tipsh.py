@@ -51,10 +51,10 @@ def haar_sums_j(J, j, arr):
 
 def haar_1(sums):
     (h1, h2), (v1, v2), (d1, d2) = sums
-    a = numpy.add(h1, h2) / 2
-    h = numpy.subtract(h1, h2) / 2
-    v = numpy.subtract(v1, v2) / 2
-    d = numpy.subtract(d1, d2) / 2
+    a = numpy.add(h1, h2) 
+    h = numpy.subtract(h1, h2) 
+    v = numpy.subtract(v1, v2) 
+    d = numpy.subtract(d1, d2) 
     return (a, h, v, d)
 
 
@@ -142,7 +142,7 @@ def haar_threshold(counts, model, alpha, jmin=0, fwer=None):
     vs = []
     ds = []
 
-    p = multiprocessing.Pool(3)
+    p = multiprocessing.Pool(2)
 
     for j in range(J - 1, jmin - 1, -1):
         f = 2 ** (J - j - 1)
@@ -167,9 +167,9 @@ def haar_threshold(counts, model, alpha, jmin=0, fwer=None):
 
         (h1, h2), (v1, v2), (d1, d2) = sums_model
 
-        hp = p.apply_async(skellam_tail, (2 * f * h_counts, f * h1, f * h2))
-        vp = p.apply_async(skellam_tail, (2 * f * v_counts, f * v1, f * v2))
-        dp = p.apply_async(skellam_tail, (2 * f * d_counts, f * d1, f * d2))
+        hp = p.apply_async(skellam_tail, (h_counts, h1, h2))
+        vp = p.apply_async(skellam_tail, (v_counts, v1, v2))
+        dp = p.apply_async(skellam_tail, (d_counts, d1, d2))
 
         print("h threshold")
         h_mask = hp.get() < alpha_j / 2
@@ -212,11 +212,7 @@ def haar_threshold_sphere(counts, model, alpha, jmin=0, fwer=None):
 
 
 def inv_haar_j(J, j, a, h, v, d):
-    N = 2 ** J
     s = 2 ** (J - j - 1)
-    rows, cols = a.shape
-    sh = (rows, cols)
-    arr = numpy.empty(sh, float)
     ah = numpy.add(a, h)
     av = numpy.add(a, v)
     ad = numpy.add(a, d)
@@ -229,7 +225,7 @@ def inv_haar_j(J, j, a, h, v, d):
     dr = numpy.subtract(ad, hv)
     spharr = (
         xx + roll_sphere(xr, 0, -s) + roll_sphere(dx, -s, 0) + roll_sphere(dr, -s, -s)
-    ) / 8
+    ) / 16
     return spharr
 
 
