@@ -195,10 +195,11 @@ def haar_threshold(counts, model, alpha, jmin=0, fwer=None):
     vs = []
     ds = []
 
-    p = multiprocessing.Pool(2)
+    p = multiprocessing.Pool(3)
 
     args = skellam_inputs(counts, model, alpha, jmin, fwer)
     ks = p.imap(threshold1, args, 1)
+    #ks = map(threshold1, args)
     p.close()
     
     for k in chunked_iterable(ks, 3):
