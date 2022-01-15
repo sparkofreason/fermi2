@@ -2,6 +2,7 @@ import gc
 import itertools
 import math
 import multiprocessing
+from multiprocessing import shared_memory
 import numpy
 import rpy2
 import rpy2.robjects as ro
@@ -13,12 +14,10 @@ numpy2ri.activate()
 stats = importr("stats")
 skel = importr("skellam")
 
-
 def roll_sphere(arr, lat_roll, lon_roll):
     rolled = numpy.roll(arr, lon_roll, 1)
     rolled = numpy.roll(rolled, lat_roll, 0)
     return rolled
-
 
 def spherify(arr):
     _, cols = arr.shape
@@ -156,13 +155,12 @@ def skellam_inputs(counts, model, alpha, jmin=0, fwer=None):
 
         (h1, h2), (v1, v2), (d1, d2) = sums_model
         yield (h_counts, h_model, h1, h2, alpha_j, j, "Horizontal")
-        del h1, h2, h_counts, h_model
         yield (v_counts, v_model, v1, v2, alpha_j, j, "Vertical")
-        del v1, v2, v_counts, v_model
         yield (d_counts, d_model, d1, d2, alpha_j, j, "Diagonal")
-        del d1, d2, d_counts, d_model
-        print("Collected", gc.collect()) # Not freeing memory
-    yield (a_counts, a_model, alpha_j)
+    shm = shared_memory.SharedMemory(create=True, size=a_model.nbytes)
+    a_model_sh = numpy.ndarray(a_model.shape, dtype=a_model.dtype, buffer=shm.buf)
+    a_model_sh[:,:] = a_model[:,:]
+    yield (a_counts, a_model_sh, alpha_j)
 
 def threshold1_impl(k, k_model, mu1, mu2, alpha_j, j, direction):
     print(direction, j, "******************************")
@@ -172,7 +170,7 @@ def threshold1_impl(k, k_model, mu1, mu2, alpha_j, j, direction):
     k_model[mask] = k[mask]
     return k_model
 
-def threshold1(args):
+def threshold1(*args):
     if (len(args) == 7):
         return threshold1_impl(*args)
     else:
@@ -190,17 +188,26 @@ def chunked_iterable(iterable, size):
             break
         yield chunk
 
-def haar_threshold(counts, model, alpha, jmin=0, fwer=None):
+def haar_threshold_foo(args, poolWorkers = None):
     hs = []
     vs = []
     ds = []
 
-    p = multiprocessing.Pool(3)
-
-    args = skellam_inputs(counts, model, alpha, jmin, fwer)
-    ks = p.imap(threshold1, args, 1)
-    #ks = map(threshold1, args)
-    p.close()
+    if (poolWorkers == None):
+        ks = map(threshold1, args)
+    else:
+        ctx = multiprocessing.get_context("fork")
+        p = ctx.Pool(poolWorkers, maxtasksperchild=1)
+        with p:
+            #ks = p.imap(threshold1, args, 1)
+            ks = []
+            res = []
+            for a in args:
+            #    _, k, *rest = a
+            #    ks.append(k)
+                res.append(p.apply_async(threshold1, a))
+            for r in res:
+                ks.append(r.get())
     
     for k in chunked_iterable(ks, 3):
         if (len(k) == 3):
@@ -210,9 +217,11 @@ def haar_threshold(counts, model, alpha, jmin=0, fwer=None):
         else:
             a = k[0]
 
-
     return a, hs, vs, ds
 
+def haar_threshold(counts, model, alpha, jmin=0, fwer=None):
+    args = skellam_inputs(counts, model, alpha, jmin, fwer)
+    return haar_threshold_foo(args)
 
 def haar_threshold_sphere(counts, model, alpha, jmin=0, fwer=None):
     a_counts = spherify(counts)
