@@ -2,7 +2,6 @@ import gc
 import itertools
 import math
 import multiprocessing
-from multiprocessing import shared_memory
 import numpy
 import rpy2
 import rpy2.robjects as ro
@@ -157,10 +156,7 @@ def skellam_inputs(counts, model, alpha, jmin=0, fwer=None):
         yield (h_counts, h_model, h1, h2, alpha_j, j, "Horizontal")
         yield (v_counts, v_model, v1, v2, alpha_j, j, "Vertical")
         yield (d_counts, d_model, d1, d2, alpha_j, j, "Diagonal")
-    shm = shared_memory.SharedMemory(create=True, size=a_model.nbytes)
-    a_model_sh = numpy.ndarray(a_model.shape, dtype=a_model.dtype, buffer=shm.buf)
-    a_model_sh[:,:] = a_model[:,:]
-    yield (a_counts, a_model_sh, alpha_j)
+    yield (a_counts, a_model, alpha_j)
 
 def threshold1_impl(k, k_model, mu1, mu2, alpha_j, j, direction):
     print(direction, j, "******************************")
