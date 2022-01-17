@@ -129,7 +129,7 @@ def poisson_tail(x, mu):
     p[right] = stats.ppois(x[right], mu[right], lower_tail=False)
     return p
 
-def skellam_inputs(counts, model, alpha, jmin=0, fwer=None):
+def skellam_inputs(counts, model, alpha, jmin=0, fwer=None, mode=None):
     a_counts = numpy.copy(counts)
     a_model = numpy.copy(model)
 
@@ -153,28 +153,34 @@ def skellam_inputs(counts, model, alpha, jmin=0, fwer=None):
         a_model, h_model, v_model, d_model = haar_1(sums_model)
 
         (h1, h2), (v1, v2), (d1, d2) = sums_model
-        yield (h_counts, h_model, h1, h2, alpha_j, j, "Horizontal")
-        yield (v_counts, v_model, v1, v2, alpha_j, j, "Vertical")
-        yield (d_counts, d_model, d1, d2, alpha_j, j, "Diagonal")
-    yield (a_counts, a_model, alpha_j)
+        yield (h_counts, h_model, h1, h2, alpha_j, j, "Horizontal", mode)
+        yield (v_counts, v_model, v1, v2, alpha_j, j, "Vertical", mode)
+        yield (d_counts, d_model, d1, d2, alpha_j, j, "Diagonal", mode)
+    yield (a_counts, a_model, alpha_j, mode)
 
-def threshold1_impl(k, k_model, mu1, mu2, alpha_j, j, direction):
+def threshold1_impl(k, k_model, mu1, mu2, alpha_j, j, direction, mode):
     print(direction, j, "******************************")
     print("alpha_j", alpha_j)
     p = skellam_tail(k, mu1, mu2)
+    if mode == 'pvalue':
+        return p
     mask = p < alpha_j/2
-    k_model[mask] = k[mask]
-    return k_model
+    k[mask] = k[mask] - k_model[mask]
+    k[~mask] = 0
+    return k
 
 def threshold1(*args):
-    if (len(args) == 7):
+    if (len(args) == 8):
         return threshold1_impl(*args)
     else:
-        a_counts, a_model, alpha_j = args
+        a_counts, a_model, alpha_j, mode = args
         ap = poisson_tail(a_counts, a_model)
+        if mode == 'pvalue':
+            return ap
         a_mask = ap < alpha_j / 2
-        a_model[a_mask] = a_counts[a_mask]
-        return a_model
+        a_counts[a_mask] = a_counts[a_mask] - a_model[a_mask]
+        a_counts[~a_mask] = 0
+        return a_counts
 
 def chunked_iterable(iterable, size):
     it = iter(iterable)
@@ -255,3 +261,16 @@ def inv_haar(a, hs, vs, ds):
 
 def inv_haar_sphere(a, hs, vs, ds):
     return unspherify(inv_haar(a, hs, vs, ds))
+
+# I'm missing something here, seems like this should be a lot faster
+def inv_haar_level(j, a, hs, vs, ds):
+    j = j - 1
+    zs = numpy.zeros(a.shape)
+    hsp = list(itertools.repeat(zs, len(hs)))
+    vsp = list(itertools.repeat(zs, len(vs)))
+    dsp = list(itertools.repeat(zs, len(ds)))
+    ap = zs
+    hsp[j] = hs[j]
+    vsp[j] = vs[j]
+    dsp[j] = ds[j]
+    return inv_haar_sphere(ap, hsp, vsp, dsp)
