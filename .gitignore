@@ -2,3 +2,5 @@
 **/.DS_Store
 fits_files
 *.npz
+*.mmdpickle
+*.mp4
