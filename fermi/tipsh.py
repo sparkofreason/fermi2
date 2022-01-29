@@ -1,8 +1,8 @@
-import gc
 import itertools
 import math
 import multiprocessing
 import numpy
+from scipy.stats import poisson, skellam
 import rpy2
 import rpy2.robjects as ro
 from rpy2.robjects.packages import importr
@@ -13,28 +13,48 @@ numpy2ri.activate()
 stats = importr("stats")
 skel = importr("skellam")
 
+# Really just a 2D numpy.roll
 def roll_sphere(arr, lat_roll, lon_roll):
     rolled = numpy.roll(arr, lon_roll, 1)
     rolled = numpy.roll(rolled, lat_roll, 0)
     return rolled
 
+
+# Given arr that represents a cylindrical projection of a sphere,
+# stack a shifted and flipped version such that going over either
+# effectively takes you to the "other side". So, for example, if 
+# you were following longitude 30 degrees, and went up through
+# latitude 89->90->89, you would land at longitude 30+180 = 210.
 def spherify(arr):
     _, cols = arr.shape
     spharr = numpy.vstack((arr, numpy.flipud(numpy.roll(arr, cols // 2, 1))))
     return spharr
 
 
+# Undo spherify and return the original array
 def unspherify(spharr):
     rows, _ = spharr.shape
     return spharr[0 : rows // 2, :]
 
 
+# Same as unspherify, but operating on the to stacked array.
+# Handy for debugging
+def unspherify_top(spharr):
+    rows, cols = spharr.shape
+    return numpy.flipud(numpy.roll(spharr[rows // 2 : rows, :], -cols // 2, 1))
+
+
+# Returns shifted versions of arr suitable for computing the Haar
+# transform at a given scale.
+# Return:
+# - xx - original arr
+# - xr 
 def haar_vals(J, j, arr):
     s = 2 ** (J - j - 1)
     xx = arr
-    xr = roll_sphere(arr, 0, s)
-    dx = roll_sphere(arr, s, 0)
-    dr = roll_sphere(arr, s, s)
+    xr = roll_sphere(arr, 0, -s)
+    dx = roll_sphere(arr, -s, 0)
+    dr = roll_sphere(arr, -s, -s)
     return (xx, xr, dx, dr)
 
 
@@ -82,7 +102,7 @@ def skellam_tail(k, mu1, mu2):
     p = numpy.ones(k.shape)
     diff_mu = numpy.subtract(mu1, mu2)
     sigma_mu = numpy.sqrt(numpy.add(mu1, mu2))
-    large = (mu1 >= 1000) | (mu2 > 1000)
+    large = (mu1 >= 100) | (mu2 > 100)
     small = ~large
     left = k <= diff_mu
     right = ~left
@@ -93,15 +113,24 @@ def skellam_tail(k, mu1, mu2):
 
     if p[small_left].size > 0:
         print("small_left")
-        p[small_left] = skel.pskellam(
-            k[small_left], mu1[small_left], mu2[small_left], lower_tail=True
-        )
+        p[small_left] = skellam.cdf(k[small_left], mu1[small_left], mu2[small_left])
+        # p[small_left] = skel.pskellam(
+        #     k[small_left], mu1[small_left], mu2[small_left], lower_tail=True
+        # )
 
     if p[small_right].size > 0:
         print("small_right")
-        p[small_right] = skel.pskellam(
-            k[small_right], mu1[small_right], mu2[small_right], lower_tail=False
-        )
+        ksr = k[small_right]
+        mu1sr = mu1[small_right]
+        mu2sr = mu2[small_right]
+        # try:
+        #     p2 = skel.dskellam(ksr, mu1sr, mu2sr)
+        # except:
+        #     p2 = skel.dskellam_sp(ksr, mu1sr, mu2sr)
+        # p1 = skel.pskellam(ksr, mu1sr, mu2sr, lower_tail=False)
+        p1 = skellam.sf(ksr, mu1sr, mu2sr)
+        p2 = skellam.pmf(ksr, mu1sr, mu2sr)
+        p[small_right] =  p1 + p2 
 
     if p[large_left].size > 0:
         print("large_left")
@@ -118,7 +147,7 @@ def skellam_tail(k, mu1, mu2):
             lower_tail=False,
         )
 
-    return p
+    return numpy.reshape(p, k.shape)
 
 
 def poisson_tail(x, mu):
@@ -127,7 +156,10 @@ def poisson_tail(x, mu):
     right = x > mu
     p[left] = stats.ppois(x[left], mu[left])
     p[right] = stats.ppois(x[right], mu[right], lower_tail=False)
-    return p
+    return numpy.reshape(p, x.shape)
+
+def sidak(alpha, j):
+    return 1 - (1 - alpha) ** (1 / (2 ** (2 * j)))
 
 def skellam_inputs(counts, model, alpha, jmin=0, fwer=None, mode=None):
     a_counts = numpy.copy(counts)
@@ -140,7 +172,7 @@ def skellam_inputs(counts, model, alpha, jmin=0, fwer=None, mode=None):
     for j in range(J - 1, jmin - 1, -1):
         f = 2 ** (J - j)
         if fwer == "sidak":
-            alpha_j = 1 - (1 - alpha) ** (1 / (2 ** (2 * j)))
+            alpha_j = sidak(alpha, j)
         elif fwer == "bonferroni":
             alpha_j = alpha / 2 ** (2 * j)
         else:
@@ -153,10 +185,11 @@ def skellam_inputs(counts, model, alpha, jmin=0, fwer=None, mode=None):
         a_model, h_model, v_model, d_model = haar_1(sums_model)
 
         (h1, h2), (v1, v2), (d1, d2) = sums_model
-        yield (h_counts, h_model, h1, h2, alpha_j, j, "Horizontal", mode)
+        yield (h_counts, h_model, h1, h2, alpha_j, j, "Horizontal", mode)   
         yield (v_counts, v_model, v1, v2, alpha_j, j, "Vertical", mode)
         yield (d_counts, d_model, d1, d2, alpha_j, j, "Diagonal", mode)
     yield (a_counts, a_model, alpha_j, mode)
+
 
 def threshold1_impl(k, k_model, mu1, mu2, alpha_j, j, direction, mode):
     print(direction, j, "******************************")
@@ -168,6 +201,7 @@ def threshold1_impl(k, k_model, mu1, mu2, alpha_j, j, direction, mode):
     k[mask] = k[mask] - k_model[mask]
     k[~mask] = 0
     return k
+
 
 def threshold1(*args):
     if (len(args) == 8):
@@ -182,6 +216,7 @@ def threshold1(*args):
         a_counts[~a_mask] = 0
         return a_counts
 
+
 def chunked_iterable(iterable, size):
     it = iter(iterable)
     while True:
@@ -190,12 +225,14 @@ def chunked_iterable(iterable, size):
             break
         yield chunk
 
-def haar_threshold_foo(args, poolWorkers = None):
+
+def haar_threshold_pool(args, poolWorkers = None):
     hs = []
     vs = []
     ds = []
 
     if (poolWorkers == None):
+        # TODO - This is broken.
         ks = map(threshold1, args)
     else:
         ctx = multiprocessing.get_context("fork")
@@ -221,9 +258,11 @@ def haar_threshold_foo(args, poolWorkers = None):
 
     return a, hs, vs, ds
 
+
 def haar_threshold(counts, model, alpha, jmin=0, fwer=None):
     args = skellam_inputs(counts, model, alpha, jmin, fwer)
-    return haar_threshold_foo(args)
+    return haar_threshold_pool(args)
+
 
 def haar_threshold_sphere(counts, model, alpha, jmin=0, fwer=None):
     a_counts = spherify(counts)
@@ -233,20 +272,20 @@ def haar_threshold_sphere(counts, model, alpha, jmin=0, fwer=None):
 
 def inv_haar_j(J, j, a, h, v, d):
     s = 2 ** (J - j - 1)
-    ah = numpy.add(a, h)
-    av = numpy.add(a, v)
-    ad = numpy.add(a, d)
-    vd = numpy.add(v, d)
-    hd = numpy.add(h, d)
-    hv = numpy.add(h, v)
-    xx = numpy.add(ah, vd)
-    xr = numpy.subtract(av, hd)
-    dx = numpy.subtract(ah, vd)
-    dr = numpy.subtract(ad, hv)
-    spharr = (
-        xx + roll_sphere(xr, 0, -s) + roll_sphere(dx, -s, 0) + roll_sphere(dr, -s, -s)
-    ) / 16
-    return spharr
+    ah = a + h #numpy.add(a, h)
+    av = a + v #numpy.add(a, v)
+    ad = a + d #numpy.add(a, d)
+    vd = v + d #numpy.add(v, d)
+    hd = h + d #numpy.add(h, d)
+    hv = h + v #numpy.add(h, v)
+    xx = ah + vd #numpy.add(ah, vd)
+    xr = av - hd #numpy.subtract(av, hd)
+    dx = ah - vd #numpy.subtract(ah, vd)
+    dr = ad - hv #numpy.subtract(ad, hv)
+    arr = (
+        xx + roll_sphere(xr, 0, s) + roll_sphere(dx, s, 0) + roll_sphere(dr, s, s)
+    ) / 16 # 4 terms for each shift times 4 values in summed in each coarse coefficient
+    return arr
 
 
 def inv_haar(a, hs, vs, ds):
@@ -260,17 +299,26 @@ def inv_haar(a, hs, vs, ds):
 
 
 def inv_haar_sphere(a, hs, vs, ds):
-    return unspherify(inv_haar(a, hs, vs, ds))
+    spharr = inv_haar(a, hs, vs, ds)
+    return (unspherify(spharr) + unspherify_top(spharr))/2
 
 # I'm missing something here, seems like this should be a lot faster
-def inv_haar_level(j, a, hs, vs, ds):
+def inv_haar_level(j, w, direction=None ):
     j = j - 1
-    zs = numpy.zeros(a.shape)
-    hsp = list(itertools.repeat(zs, len(hs)))
-    vsp = list(itertools.repeat(zs, len(vs)))
-    dsp = list(itertools.repeat(zs, len(ds)))
+    zs = numpy.zeros(w['a'].shape)
+    hsp = list(itertools.repeat(zs, len(w['hs'])))
+    vsp = list(itertools.repeat(zs, len(w['vs'])))
+    dsp = list(itertools.repeat(zs, len(w['ds'])))
     ap = zs
-    hsp[j] = hs[j]
-    vsp[j] = vs[j]
-    dsp[j] = ds[j]
+    if direction == None:
+        hsp[j] = w['hs'][j]
+        vsp[j] = w['vs'][j]
+        dsp[j] = w['ds'][j]
+    elif direction == 'hs':
+        hsp[j] = w['hs'][j]
+    elif direction == 'vs':
+        vsp[j] = w['vs'][j]
+    elif direction == 'ds':
+        dsp[j] = w['ds'][j]
+        
     return inv_haar_sphere(ap, hsp, vsp, dsp)
