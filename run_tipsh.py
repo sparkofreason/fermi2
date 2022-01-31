@@ -7,7 +7,7 @@ import numpy
 import time
 from scipy.stats import poisson
 
-energy = '5-10gev'
+energy = '500-1000gev'
 fits_root = 'fits_files'
 data_file = get_pkg_data_filename(f"{fits_root}/lat_source_zmax90_{energy}_ccube.fits")
 point_model_file = get_pkg_data_filename(f"{fits_root}/{energy}_source_point_model_map.fits")
@@ -27,11 +27,12 @@ isotropic_model = fits.getdata(isotropic_model_file, ext=0)
 total_model = 1.0*point_model + 1.0*diffuse_model + 1.0*galactic_model + 1.0*isotropic_model
 del count_cube, point_model, diffuse_model, galactic_model, isotropic_model
 
-alpha = 1e-2
+alpha = 0.99
 jmin = 0
 fwer = 'uniform'
 data = 'constant'
-now = datetime.
+date = datetime.date.today()
+filename = f"{data}_{date}_{energy}_{fwer}_{alpha}.mmdpickle"
 
 if (data == 'simulated'):
     count_data = poisson.rvs(total_model, random_state=420)
@@ -40,7 +41,7 @@ elif (data == 'constant'):
     count_data = poisson.rvs(total_model, random_state=42)
 
 tic = time.time()
-tipsh.run_tipsh()
+tipsh.run_tipsh(count_data, total_model, alpha, jmin, fwer, filename, poolWorkers=8)
 toc = time.time()
 print("Elapsed", toc - tic)
 #numpy.savez(filename, a=a, hs=hs, vs=vs, ds=ds, total_model=total_model)

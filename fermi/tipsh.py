@@ -313,45 +313,53 @@ def inv_haar_sphere(result):
     return (unspherify(spharr) + unspherify_top(spharr))/2
 
 # I'm missing something here, seems like this should be a lot faster
-def inv_haar_level(j, result, direction=None ):
-    w = result['wavelet']
+def inv_haar_level(J, j, a, h, v, d, direction=None ):
     j = j - 1
-    zs = numpy.zeros(w['a'].shape)
-    hsp = list(itertools.repeat(zs, len(w['hs'])))
-    vsp = list(itertools.repeat(zs, len(w['vs'])))
-    dsp = list(itertools.repeat(zs, len(w['ds'])))
+    print('inv_haar_level', j)
+    zs = numpy.zeros(a.shape)
+    hsp = list(itertools.repeat(zs, J))
+    vsp = list(itertools.repeat(zs, J))
+    dsp = list(itertools.repeat(zs, J))
     ap = zs
     if direction == None:
-        hsp[j] = w['hs'][j]
-        vsp[j] = w['vs'][j]
-        dsp[j] = w['ds'][j]
+        hsp[j] = h
+        vsp[j] = v
+        dsp[j] = d
     elif direction == 'hs':
-        hsp[j] = w['hs'][j]
+        hsp[j] = h
     elif direction == 'vs':
-        vsp[j] = w['vs'][j]
+        vsp[j] = v
     elif direction == 'ds':
-        dsp[j] = w['ds'][j]
+        dsp[j] = d
         
     return inv_haar_sphere({'wavelet': {'a': ap, 'hs': hsp, 'vs': vsp, 'ds': dsp}})
 
-def run_tipsh(count_data, total_model, alpha, jmin, fwer, filename):
+def level_key(*keys):
+    return '/'.join(map(str, keys))
+
+def run_tipsh(count_data, total_model, alpha, jmin, fwer, filename, poolWorkers = 1):
     args = skellam_inputs(spherify(count_data), spherify(total_model), alpha, jmin, fwer)
     
-    result = haar_threshold_pool(args, 8)
+    result = haar_threshold_pool(args, poolWorkers=poolWorkers)
 
     m = mmapdict(filename)
     print('Reconstructing difference')
     count_rec = inv_haar_sphere(result)
-    level_recs = {}
-    for j in range(1, 13):
-        print('Reconstructing level: ', j)
-        level_recs[j] = tipsh.inv_haar_level(j, result)
-    print("Saving", filename)
     m['count_rec'] = count_rec
-    m['level_recs'] = level_recs
-    m['wavelet'] = result['wavelet']
-    m['pvalue'] = result['pvalue']
+    ctx = multiprocessing.get_context("fork")
+    p = ctx.Pool(poolWorkers, maxtasksperchild=1)
+    with p:
+        res = []
+        w = result['wavelet']
+        for j in range(1, 13):
+            print('Reconstructing level: ', j)
+            res.append(p.apply_async(inv_haar_level, (len(w['hs']), j, w['a'], w['hs'][j-1], w['vs'][j-1], w['ds'][j-1])))
+        for j in range(1, 13):
+            rec = res[j-1].get()
+            m[level_key('level_recs', j)] = rec
+            for d in ['a', 'hs', 'vs', 'ds']:
+                m[level_key('wavelet', d, j)] = result['wavelet'][d][j-1]
+                m[level_key('pvalue', d, j)] = result['pvalue'][d][j-1]
     m['count_data'] = count_data
     m['total_model'] = total_model
-
     m.vacuum()
