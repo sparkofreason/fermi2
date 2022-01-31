@@ -1,5 +1,6 @@
 import itertools
 import math
+from mmappickle.dict import mmapdict
 import multiprocessing
 import numpy
 from scipy.stats import poisson, skellam
@@ -332,3 +333,25 @@ def inv_haar_level(j, result, direction=None ):
         dsp[j] = w['ds'][j]
         
     return inv_haar_sphere({'wavelet': {'a': ap, 'hs': hsp, 'vs': vsp, 'ds': dsp}})
+
+def run_tipsh(count_data, total_model, alpha, jmin, fwer, filename):
+    args = skellam_inputs(spherify(count_data), spherify(total_model), alpha, jmin, fwer)
+    
+    result = haar_threshold_pool(args, 8)
+
+    m = mmapdict(filename)
+    print('Reconstructing difference')
+    count_rec = inv_haar_sphere(result)
+    level_recs = {}
+    for j in range(1, 13):
+        print('Reconstructing level: ', j)
+        level_recs[j] = tipsh.inv_haar_level(j, result)
+    print("Saving", filename)
+    m['count_rec'] = count_rec
+    m['level_recs'] = level_recs
+    m['wavelet'] = result['wavelet']
+    m['pvalue'] = result['pvalue']
+    m['count_data'] = count_data
+    m['total_model'] = total_model
+
+    m.vacuum()
