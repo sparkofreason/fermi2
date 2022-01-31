@@ -69,7 +69,7 @@ def imshow_carree_impl(fig, ax, data, cmap, norm=None, interpolation='antialiase
 def imshow_carree(data, cmap, norm=None, interpolation='antialiased', extent=(-180,180,-90,90), linthresh=1.0):
     fig = plt.figure(figsize=(30, 15))
     ax = plt.subplot()
-    imshow_carree_impl(fig, ax, data, cmap, interpolation=interpolation, linthresh=linthresh)
+    imshow_carree_impl(fig, ax, data, cmap, interpolation=interpolation, linthresh=linthresh, norm=norm)
     
 
 def imshow_spherified_carree(data, cmap, norm, interpolation='antialiased'):
@@ -105,12 +105,25 @@ def imshow_multiple(data, keys, cmap, linthresh=None, norms=None, interpolation=
         ax.set_title(keys[n], fontsize=40)
 
 def animate_carree(data, keys, cmap, linthresh=None, norms=None):
+    fig = plt.figure(figsize=(30, 15))
+    ax = plt.axes(xlim=(-180,180), ylim=(-90,90))
+    #ax.grid()
     N = len(keys)
+    im = imshow_carree_impl(fig, ax, data[keys[0]], cmap, linthresh=linthresh[keys[0]])
+    tx = ax.set_title(keys[0], fontsize=40)
     def animate(i):
-        j, k = divmod(i, N)
-        n = k if j % 2 == 0 else N - k - 1  
-        #print(N, n, j, k)
-        im.set_array(count_recs[energies[n]])
-        im.set_norm(norms[energies[n]])
-        ax.set_title(energies[n], fontsize=40)
+        im.set_data(data[keys[i]])
+        im.set_norm(autonorm(data[keys[i]], linthresh[keys[i]]))
+        tx.set_text(keys[i])
         return [im]
+    anim = animation.FuncAnimation(
+                                fig, 
+                                animate, 
+                                frames = N,
+                                interval = 1000 , # in ms
+                                )
+    plt.close()
+    #plt.rcParams['animation.ffmpeg_path'] = '/usr/bin/ffmpeg'
+    #FFwriter = animation.FFMpegWriter(fps=1, extra_args=['-vcodec', 'libx264'])
+    #anim.save('unmodified_models_animation.mp4', writer=FFwriter)
+    return anim

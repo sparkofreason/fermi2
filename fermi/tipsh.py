@@ -161,7 +161,7 @@ def poisson_tail(x, mu):
 def sidak(alpha, j):
     return 1 - (1 - alpha) ** (1 / (2 ** (2 * j)))
 
-def skellam_inputs(counts, model, alpha, jmin=0, fwer=None, mode=None):
+def skellam_inputs(counts, model, alpha, jmin=0, fwer=None):
     a_counts = numpy.copy(counts)
     a_model = numpy.copy(model)
 
@@ -185,36 +185,32 @@ def skellam_inputs(counts, model, alpha, jmin=0, fwer=None, mode=None):
         a_model, h_model, v_model, d_model = haar_1(sums_model)
 
         (h1, h2), (v1, v2), (d1, d2) = sums_model
-        yield (h_counts, h_model, h1, h2, alpha_j, j, "Horizontal", mode)   
-        yield (v_counts, v_model, v1, v2, alpha_j, j, "Vertical", mode)
-        yield (d_counts, d_model, d1, d2, alpha_j, j, "Diagonal", mode)
-    yield (a_counts, a_model, alpha_j, mode)
+        yield (h_counts, h_model, h1, h2, alpha_j, j, "Horizontal")   
+        yield (v_counts, v_model, v1, v2, alpha_j, j, "Vertical")
+        yield (d_counts, d_model, d1, d2, alpha_j, j, "Diagonal")
+    yield (a_counts, a_model, alpha_j)
 
 
-def threshold1_impl(k, k_model, mu1, mu2, alpha_j, j, direction, mode):
+def threshold1_impl(k, k_model, mu1, mu2, alpha_j, j, direction):
     print(direction, j, "******************************")
     print("alpha_j", alpha_j)
     p = skellam_tail(k, mu1, mu2)
-    if mode == 'pvalue':
-        return p
     mask = p < alpha_j/2
     k[mask] = k[mask] - k_model[mask]
     k[~mask] = 0
-    return k
+    return k, p
 
 
 def threshold1(*args):
-    if (len(args) == 8):
+    if (len(args) == 7):
         return threshold1_impl(*args)
     else:
-        a_counts, a_model, alpha_j, mode = args
+        a_counts, a_model, alpha_j = args
         ap = poisson_tail(a_counts, a_model)
-        if mode == 'pvalue':
-            return ap
         a_mask = ap < alpha_j / 2
         a_counts[a_mask] = a_counts[a_mask] - a_model[a_mask]
         a_counts[~a_mask] = 0
-        return a_counts
+        return a_counts, ap
 
 
 def chunked_iterable(iterable, size):
@@ -230,6 +226,9 @@ def haar_threshold_pool(args, poolWorkers = None):
     hs = []
     vs = []
     ds = []
+    phs = []
+    pvs = []
+    pds = []
 
     if (poolWorkers == None):
         # TODO - This is broken.
@@ -250,13 +249,18 @@ def haar_threshold_pool(args, poolWorkers = None):
     
     for k in chunked_iterable(ks, 3):
         if (len(k) == 3):
-            hs.append(k[0])
-            vs.append(k[1])
-            ds.append(k[2])
+            hs.append(k[0][0])
+            phs.append(k[0][1])
+            vs.append(k[1][0])
+            pvs.append(k[1][1])
+            ds.append(k[2][0])
+            pds.append(k[2][1])
         else:
-            a = k[0]
+            a = k[0][0]
+            pa = k[0][1]
 
-    return a, hs, vs, ds
+    return {'wavelet': {'a': a, 'hs': hs, 'vs': vs, 'ds': ds},
+            'pvalue': {'a': pa, 'hs': phs, 'vs': pvs, 'ds': pds}}
 
 
 def haar_threshold(counts, model, alpha, jmin=0, fwer=None):
@@ -288,7 +292,12 @@ def inv_haar_j(J, j, a, h, v, d):
     return arr
 
 
-def inv_haar(a, hs, vs, ds):
+def inv_haar(result):
+    wavelet = result['wavelet']
+    a = wavelet['a']
+    hs = wavelet['hs']
+    vs = wavelet['vs']
+    ds = wavelet['ds']
     rows, cols = a.shape
     J = int(math.ceil(math.log(max(rows, cols), 2)))
     nj = len(hs)
@@ -298,12 +307,13 @@ def inv_haar(a, hs, vs, ds):
     return a
 
 
-def inv_haar_sphere(a, hs, vs, ds):
-    spharr = inv_haar(a, hs, vs, ds)
+def inv_haar_sphere(result):
+    spharr = inv_haar(result)
     return (unspherify(spharr) + unspherify_top(spharr))/2
 
 # I'm missing something here, seems like this should be a lot faster
-def inv_haar_level(j, w, direction=None ):
+def inv_haar_level(j, result, direction=None ):
+    w = result['wavelet']
     j = j - 1
     zs = numpy.zeros(w['a'].shape)
     hsp = list(itertools.repeat(zs, len(w['hs'])))
@@ -321,4 +331,4 @@ def inv_haar_level(j, w, direction=None ):
     elif direction == 'ds':
         dsp[j] = w['ds'][j]
         
-    return inv_haar_sphere(ap, hsp, vsp, dsp)
+    return inv_haar_sphere({'wavelet': {'a': ap, 'hs': hsp, 'vs': vsp, 'ds': dsp}})
