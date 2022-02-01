@@ -59,17 +59,19 @@ def autonorm(data, linthresh):
         vmax = 0
     return colors.SymLogNorm(linthresh=linthresh, vmin=vmin, vmax=vmax)
 
-def imshow_carree_impl(fig, ax, data, cmap, norm=None, interpolation='antialiased', extent=(-180,180,-90,90), linthresh=1.0):
+def imshow_carree_impl(fig, ax, data, cmap, norm=None, interpolation='antialiased', extent=(-180,180,-90,90), linthresh=1.0, title=None):
     norm = norm if norm else autonorm(data, linthresh)
     im = ax.imshow(data, cmap=cmap, origin='lower', norm=norm, extent=extent, interpolation=interpolation)
     ax.grid(color='black')
+    if title:
+        ax.set_title(title, fontsize=40)
     fig.colorbar(im, ax=ax)
     return im
 
-def imshow_carree(data, cmap, norm=None, interpolation='antialiased', extent=(-180,180,-90,90), linthresh=1.0):
+def imshow_carree(data, cmap, norm=None, interpolation='antialiased', extent=(-180,180,-90,90), linthresh=1.0, title=None):
     fig = plt.figure(figsize=(30, 15))
     ax = plt.subplot()
-    imshow_carree_impl(fig, ax, data, cmap, interpolation=interpolation, linthresh=linthresh, norm=norm)
+    imshow_carree_impl(fig, ax, data, cmap, interpolation=interpolation, linthresh=linthresh, norm=norm, title=title)
     
 
 def imshow_spherified_carree(data, cmap, norm, interpolation='antialiased'):
@@ -89,12 +91,14 @@ def imshow_spherified_carree(data, cmap, norm, interpolation='antialiased'):
     #diff = plt.imshow(im0, cmap=plt.cm.viridis, origin='lower', norm=colors.LogNorm())
     plt.colorbar(im2)
 
+
 def imshow(data, cmap, norm, interpolation='antialiased'):
     fig = plt.figure(figsize=(30, 15))
     ax = plt.subplot()
     diff = ax.imshow(data, cmap=cmap, origin='lower', norm=norm, interpolation=interpolation)
     ax.grid(color='black')
     plt.colorbar(diff)
+
 
 def imshow_multiple(data, keys, cmap, linthresh=None, norms=None, interpolation='antialiased'):
     N = len(keys)
@@ -103,6 +107,7 @@ def imshow_multiple(data, keys, cmap, linthresh=None, norms=None, interpolation=
         ax = plt.subplot(N, 1, n+1)
         imshow_carree_impl(fig, ax, data[keys[n]], cmap, interpolation=interpolation, linthresh=linthresh[keys[n]])
         ax.set_title(keys[n], fontsize=40)
+
 
 def animate_carree(data_fn, keys, cmap, linthresh=None, norms=None):
     fig = plt.figure(figsize=(30, 15))

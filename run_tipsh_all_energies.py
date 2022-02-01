@@ -15,14 +15,14 @@ jmin = 0
 fwer = 'sidak'
 
 counts = mmapdict('counts.mmdpickle')
-total_models = mmapdict('total_models_v02.mmdpickle')
+total_models = mmapdict('total_models_v02_unmodified.mmdpickle')
 
 date = datetime.date.today()
 
 tic = time.time()
 for energy in energies:
     print('----->', energy)
-    filename = f"v02_modified_{date}_{energy}_{fwer}_{alpha}.mmdpickle"
+    filename = f"v02_unmodified_{date}_{energy}_{fwer}_{alpha}.mmdpickle"
     tipsh.run_tipsh(counts[energy], total_models[energy], alpha, jmin, fwer, filename, poolWorkers=8)
 toc = time.time()
 print("Elapsed", toc - tic)
