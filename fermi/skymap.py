@@ -109,17 +109,16 @@ def imshow_multiple(data, keys, cmap, linthresh=None, norms=None, interpolation=
         ax.set_title(keys[n], fontsize=40)
 
 
-def animate_carree(data_fn, keys, cmap, linthresh=None, norms=None):
+def animate_carree(data_fn, title_fn, N, cmap, linthresh=None, norms=None):
     fig = plt.figure(figsize=(30, 15))
     ax = plt.axes(xlim=(-180,180), ylim=(-90,90))
     #ax.grid()
-    N = len(keys)
-    im = imshow_carree_impl(fig, ax, data_fn(keys[0]), cmap, norms(keys[0]) if norms else autonorm(data_fn(keys[0]), linthresh[keys[0]]))
-    tx = ax.set_title(keys[0], fontsize=40)
+    im = imshow_carree_impl(fig, ax, data_fn(0), cmap, norms(0) if norms else autonorm(data_fn(0), linthresh(0)))
+    tx = ax.set_title(title_fn(0), fontsize=40)
     def animate(i):
-        im.set_data(data_fn(keys[i]))
-        im.set_norm(norms(keys[i]) if norms else autonorm(data_fn(keys[i]), linthresh[keys[i]]))
-        tx.set_text(keys[i])
+        im.set_data(data_fn(i))
+        im.set_norm(norms(i) if norms else autonorm(data_fn(i), linthresh(i)))
+        tx.set_text(title_fn(i))
         return [im]
     anim = animation.FuncAnimation(
                                 fig, 
