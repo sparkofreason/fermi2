@@ -9,7 +9,6 @@ import time
 energies = ['100-200mev', '200-500mev', '500-1000mev', '1-2gev', '2-5gev', '5-10gev', '10-20gev', '20-50gev', '50-100gev', '100-200gev', '200-500gev', '500-1000gev']
 fits_root = 'fits_files'
 mode = 'wavelet'
-date = '2022-01-23'
 alpha = 0.01
 jmin = 0
 fwer = 'sidak'
