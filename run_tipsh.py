@@ -27,9 +27,9 @@ isotropic_model = fits.getdata(isotropic_model_file, ext=0)
 total_model = 1.0*point_model + 1.0*diffuse_model + 1.0*galactic_model + 1.0*isotropic_model
 del count_cube, point_model, diffuse_model, galactic_model, isotropic_model
 
-alpha = 0.99
+alpha = 1e-2
 jmin = 0
-fwer = 'uniform'
+fwer = 'sidak'
 data = 'constant'
 date = datetime.date.today()
 filename = f"{data}_{date}_{energy}_{fwer}_{alpha}.mmdpickle"

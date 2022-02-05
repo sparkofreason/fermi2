@@ -114,7 +114,7 @@ def animate_carree(data_fn, title_fn, N, cmap, linthresh=None, norms=None):
     ax = plt.axes(xlim=(-180,180), ylim=(-90,90))
     #ax.grid()
     im = imshow_carree_impl(fig, ax, data_fn(0), cmap, norms(0) if norms else autonorm(data_fn(0), linthresh(0)))
-    tx = ax.set_title(title_fn(0), fontsize=40)
+    tx = ax.set_title(title_fn(0), fontsize=32)
     def animate(i):
         im.set_data(data_fn(i))
         im.set_norm(norms(i) if norms else autonorm(data_fn(i), linthresh(i)))
