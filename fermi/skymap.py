@@ -6,6 +6,9 @@ import fermi.tipsh as tipsh
 import math
 import numpy 
 
+figsize = (16, 8)
+title_fontsize = 24
+
 def symLogNormShift(data, linthresh, linscale=1.0, vmin=None, vmax=None):
     min_data = numpy.min(data)
     max_data = numpy.max(data)
@@ -22,7 +25,7 @@ def ticks(data, linthresh):
     return numpy.concatenate((-numpy.flip(numpy.logspace(n1, n2, n2-n1+1)), [0], numpy.logspace(n1, n3, n3-n1+1)))
 
 def imshow_mollweide(data, cmap, norm):
-    fig = plt.figure(figsize=(30, 15))
+    fig = plt.figure(figsize=figsize)
     ax = plt.subplot(projection=ccrs.Mollweide())
     #diff = plt.imshow(fits.getdata(data_file, ext=0), origin='lower')
     diff = ax.imshow(data, cmap=cmap, origin='lower', norm=norm, transform=ccrs.PlateCarree(), extent=(-180,180,-90,90))
@@ -60,23 +63,27 @@ def autonorm(data, linthresh):
     return colors.SymLogNorm(linthresh=linthresh, vmin=vmin, vmax=vmax)
 
 def imshow_carree_impl(fig, ax, data, cmap, norm=None, interpolation='antialiased', extent=(-180,180,-90,90), linthresh=1.0, title=None):
+    plt.xticks(fontsize=16)
+    plt.yticks(fontsize=16)
+    fig.set_tight_layout({'pad': 0})
     norm = norm if norm else autonorm(data, linthresh)
     im = ax.imshow(data, cmap=cmap, origin='lower', norm=norm, extent=extent, interpolation=interpolation)
     ax.grid(color='black')
     if title:
-        ax.set_title(title, fontsize=40)
-    fig.colorbar(im, ax=ax)
+        ax.set_title(title, fontsize=title_fontsize)
+    cbar = fig.colorbar(im, ax=ax)
+    cbar.ax.tick_params(labelsize=16)
     return im
 
 def imshow_carree(data, cmap, norm=None, interpolation='antialiased', extent=(-180,180,-90,90), linthresh=1.0, title=None):
-    fig = plt.figure(figsize=(30, 15))
+    fig = plt.figure(figsize=figsize)
     ax = plt.subplot()
     imshow_carree_impl(fig, ax, data, cmap, interpolation=interpolation, linthresh=linthresh, norm=norm, title=title)
     
 
 def imshow_spherified_carree(data, cmap, norm, interpolation='antialiased'):
     rows, cols = data.shape
-    fig = plt.figure(figsize=(30, 15))
+    fig = plt.figure(figsize=figsize)
     ax1 = plt.subplot(2, 1, 2)
     #diff = plt.imshow(fits.getdata(data_file, ext=0), origin='lower')
     im1 = ax1.imshow(tipsh.unspherify(data), cmap=cmap, origin='lower', norm=norm, extent=(-180,180,-90,90), interpolation=interpolation)
@@ -93,7 +100,7 @@ def imshow_spherified_carree(data, cmap, norm, interpolation='antialiased'):
 
 
 def imshow(data, cmap, norm, interpolation='antialiased'):
-    fig = plt.figure(figsize=(30, 15))
+    fig = plt.figure(figsize=figsize)
     ax = plt.subplot()
     diff = ax.imshow(data, cmap=cmap, origin='lower', norm=norm, interpolation=interpolation)
     ax.grid(color='black')
@@ -106,15 +113,15 @@ def imshow_multiple(data, keys, cmap, linthresh=None, norms=None, interpolation=
     for n in range(0, N):
         ax = plt.subplot(N, 1, n+1)
         imshow_carree_impl(fig, ax, data[keys[n]], cmap, interpolation=interpolation, linthresh=linthresh[keys[n]])
-        ax.set_title(keys[n], fontsize=40)
+        ax.set_title(keys[n], fontsize=title_fontsize)
 
 
 def animate_carree(data_fn, title_fn, N, cmap, linthresh=None, norms=None):
-    fig = plt.figure(figsize=(30, 15))
+    fig = plt.figure(figsize=figsize)
     ax = plt.axes(xlim=(-180,180), ylim=(-90,90))
     #ax.grid()
     im = imshow_carree_impl(fig, ax, data_fn(0), cmap, norms(0) if norms else autonorm(data_fn(0), linthresh(0)))
-    tx = ax.set_title(title_fn(0), fontsize=32)
+    tx = ax.set_title(title_fn(0), fontsize=title_fontsize)
     def animate(i):
         im.set_data(data_fn(i))
         im.set_norm(norms(i) if norms else autonorm(data_fn(i), linthresh(i)))
