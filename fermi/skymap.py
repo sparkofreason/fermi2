@@ -62,7 +62,7 @@ def autonorm(data, linthresh):
         vmax = 0
     return colors.SymLogNorm(linthresh=linthresh, vmin=vmin, vmax=vmax)
 
-def imshow_carree_impl(fig, ax, data, cmap, norm=None, interpolation='antialiased', extent=(-180,180,-90,90), linthresh=1.0, title=None):
+def imshow_carree_impl(fig, ax, data, cmap, norm=None, interpolation='antialiased', extent=(-180,180,-90,90), linthresh=1.0, title=None, shrink=0.775, ticks=None, tick_labels=None):
     plt.xticks(fontsize=16)
     plt.yticks(fontsize=16)
     fig.set_tight_layout({'pad': 0})
@@ -71,14 +71,16 @@ def imshow_carree_impl(fig, ax, data, cmap, norm=None, interpolation='antialiase
     ax.grid(color='black')
     if title:
         ax.set_title(title, fontsize=title_fontsize)
-    cbar = fig.colorbar(im, ax=ax)
+    cbar = fig.colorbar(im, ax=ax, shrink=shrink, ticks=ticks)
     cbar.ax.tick_params(labelsize=16)
+    if tick_labels:
+        cbar.ax.set_yticklabels(tick_labels)
     return im
 
-def imshow_carree(data, cmap, norm=None, interpolation='antialiased', extent=(-180,180,-90,90), linthresh=1.0, title=None):
+def imshow_carree(data, cmap, norm=None, interpolation='antialiased', extent=(-180,180,-90,90), linthresh=1.0, title=None, ticks=None, tick_labels=None):
     fig = plt.figure(figsize=figsize)
     ax = plt.subplot()
-    imshow_carree_impl(fig, ax, data, cmap, interpolation=interpolation, linthresh=linthresh, norm=norm, title=title)
+    imshow_carree_impl(fig, ax, data, cmap, interpolation=interpolation, linthresh=linthresh, norm=norm, title=title, ticks=ticks, tick_labels=tick_labels)
     
 
 def imshow_spherified_carree(data, cmap, norm, interpolation='antialiased'):
