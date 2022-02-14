@@ -4,3 +4,4 @@ fits_files
 *.npz
 *.mmdpickle
 *.mp4
+*.html
