@@ -315,7 +315,6 @@ def inv_haar_sphere(result):
 # I'm missing something here, seems like this should be a lot faster
 def inv_haar_level(J, j, a, h, v, d, direction=None ):
     j = j - 1
-    print('inv_haar_level', j)
     zs = numpy.zeros(a.shape)
     hsp = list(itertools.repeat(zs, J))
     vsp = list(itertools.repeat(zs, J))
