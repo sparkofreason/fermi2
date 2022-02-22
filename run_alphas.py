@@ -6,12 +6,12 @@ import datetime
 import numpy
 import time
 
-energies = ['100-200mev', '200-500mev', '500-1000mev', '1-2gev', '2-5gev', '5-10gev', '10-20gev', '20-50gev', '50-100gev', '100-200gev', '200-500gev', '500-1000gev']
+data = '/home/dave/data/fermi-data'
+alphas = [0.1, 0.05, 0.03, 0.01, 0.005, 0.003, 0.001, 5e-4, 3e-4, 1e-4, 5e-5, 3e-5, 1e-5, 5e-6, 3e-6, 1e-6, 5e-7, 3e-7, 1e-7, 5e-8, 3e-8, 1e-8]
 fits_root = 'fits_files'
-mode = 'wavelet'
-alpha = 5e-2
 jmin = 0
 fwer = 'uniform'
+energy = '500-1000gev'
 
 counts = mmapdict('counts.mmdpickle')
 total_models = mmapdict('total_models_v02.mmdpickle')
@@ -19,9 +19,9 @@ total_models = mmapdict('total_models_v02.mmdpickle')
 date = datetime.date.today()
 
 tic = time.time()
-for energy in energies:
-    print('----->', energy)
-    filename = f"v02_modified_{date}_{energy}_{fwer}_{alpha}.mmdpickle"
+for alpha in alphas:
+    print('----->', alpha)
+    filename = f"{data}/alphas_v02_modified_{date}_{energy}_{fwer}_{alpha}.mmdpickle"
     tipsh.run_tipsh(counts[energy], total_models[energy], alpha, jmin, fwer, filename, poolWorkers=8)
 toc = time.time()
 print("Elapsed", toc - tic)
