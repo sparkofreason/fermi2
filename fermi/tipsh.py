@@ -113,14 +113,12 @@ def skellam_tail(k, mu1, mu2):
     large_right = large & right
 
     if p[small_left].size > 0:
-        print("small_left")
         p[small_left] = skellam.cdf(k[small_left], mu1[small_left], mu2[small_left])
         # p[small_left] = skel.pskellam(
         #     k[small_left], mu1[small_left], mu2[small_left], lower_tail=True
         # )
 
     if p[small_right].size > 0:
-        print("small_right")
         ksr = k[small_right]
         mu1sr = mu1[small_right]
         mu2sr = mu2[small_right]
@@ -134,13 +132,11 @@ def skellam_tail(k, mu1, mu2):
         p[small_right] =  p1 + p2 
 
     if p[large_left].size > 0:
-        print("large_left")
         p[large_left] = stats.pnorm(
             k[large_left], diff_mu[large_left], sigma_mu[large_left], lower_tail=True
         )
 
     if p[large_right].size > 0:
-        print("large_right")
         p[large_right] = stats.pnorm(
             k[large_right],
             diff_mu[large_right],
@@ -159,59 +155,39 @@ def poisson_tail(x, mu):
     p[right] = stats.ppois(x[right], mu[right], lower_tail=False)
     return numpy.reshape(p, x.shape)
 
+
 def sidak(alpha, j):
     return 1 - (1 - alpha) ** (1 / (2 ** (2 * j)))
 
-def skellam_inputs(counts, model, alpha, jmin=0, fwer=None):
-    a_counts = numpy.copy(counts)
-    a_model = numpy.copy(model)
 
-    rows, cols = a_counts.shape
-
-    J = int(math.ceil(math.log(max(rows, cols), 2)))
-
-    for j in range(J - 1, jmin - 1, -1):
-        f = 2 ** (J - j)
-        if fwer == "sidak":
-            alpha_j = sidak(alpha, j)
-        elif fwer == "bonferroni":
-            alpha_j = alpha / 2 ** (2 * j)
-        else:
-            alpha_j = alpha
-
-        print("sums")
-        a_counts, h_counts, v_counts, d_counts = haar_1(haar_sums_j(J, j, a_counts))
-
-        sums_model = haar_sums_j(J, j, a_model)
-        a_model, h_model, v_model, d_model = haar_1(sums_model)
-
-        (h1, h2), (v1, v2), (d1, d2) = sums_model
-        yield (h_counts, h_model, h1, h2, alpha_j, j, "Horizontal")   
-        yield (v_counts, v_model, v1, v2, alpha_j, j, "Vertical")
-        yield (d_counts, d_model, d1, d2, alpha_j, j, "Diagonal")
-    yield (a_counts, a_model, alpha_j)
+def pvalues1(*args):
+    if (len(args) == 6):
+        k, k_model, mu1, mu2, j, direction = args
+        print(direction, j, "******************************")
+        return skellam_tail(k, mu1, mu2)
+    else:
+        a_counts, a_model = args
+        return poisson_tail(a_counts, a_model)
 
 
-def threshold1_impl(k, k_model, mu1, mu2, alpha_j, j, direction):
+def threshold1_impl(k, k_model, p, alpha_j, j, direction):
     print(direction, j, "******************************")
     print("alpha_j", alpha_j)
-    p = skellam_tail(k, mu1, mu2)
     mask = p < alpha_j/2
     k[mask] = k[mask] - k_model[mask]
     k[~mask] = 0
-    return k, p
+    return k
 
 
 def threshold1(*args):
-    if (len(args) == 7):
+    if (len(args) == 6):
         return threshold1_impl(*args)
     else:
-        a_counts, a_model, alpha_j = args
-        ap = poisson_tail(a_counts, a_model)
+        a_counts, a_model, ap, alpha_j = args
         a_mask = ap < alpha_j / 2
         a_counts[a_mask] = a_counts[a_mask] - a_model[a_mask]
         a_counts[~a_mask] = 0
-        return a_counts, ap
+        return a_counts
 
 
 def chunked_iterable(iterable, size):
@@ -223,10 +199,7 @@ def chunked_iterable(iterable, size):
         yield chunk
 
 
-def haar_threshold_pool(args, poolWorkers = None):
-    hs = []
-    vs = []
-    ds = []
+def pvalues_pool(args, poolWorkers = None):
     phs = []
     pvs = []
     pds = []
@@ -238,55 +211,67 @@ def haar_threshold_pool(args, poolWorkers = None):
         ctx = multiprocessing.get_context("fork")
         p = ctx.Pool(poolWorkers, maxtasksperchild=1)
         with p:
-            #ks = p.imap(threshold1, args, 1)
-            ks = []
+            pvals = []
             res = []
             for a in args:
-            #    _, k, *rest = a
-            #    ks.append(k)
-                res.append(p.apply_async(threshold1, a))
+                res.append(p.apply_async(pvalues1, a))
             for r in res:
-                ks.append(r.get())
+                pvals.append(r.get())
+    
+    for pv in chunked_iterable(pvals, 3):
+        if (len(pv) == 3):
+            phs.append(pv[0])
+            pvs.append(pv[1])
+            pds.append(pv[2])
+        else:
+            pa = pv[0]
+
+    return {'pvalue': {'a': pa, 'hs': phs, 'vs': pvs, 'ds': pds}}
+
+
+def threshold(args):
+    hs = []
+    vs = []
+    ds = []
+
+    ks = []
+    for a in args:
+        ks.append(threshold1(*a))
     
     for k in chunked_iterable(ks, 3):
         if (len(k) == 3):
-            hs.append(k[0][0])
-            phs.append(k[0][1])
-            vs.append(k[1][0])
-            pvs.append(k[1][1])
-            ds.append(k[2][0])
-            pds.append(k[2][1])
+            hs.append(k[0])
+            vs.append(k[1])
+            ds.append(k[2])
         else:
-            a = k[0][0]
-            pa = k[0][1]
+            a = k[0]
 
-    return {'wavelet': {'a': a, 'hs': hs, 'vs': vs, 'ds': ds},
-            'pvalue': {'a': pa, 'hs': phs, 'vs': pvs, 'ds': pds}}
+    return {'wavelet': {'a': a, 'hs': hs, 'vs': vs, 'ds': ds}}
 
 
-def haar_threshold(counts, model, alpha, jmin=0, fwer=None):
-    args = skellam_inputs(counts, model, alpha, jmin, fwer)
-    return haar_threshold_pool(args)
+# def haar_threshold(counts, model, alpha, jmin=0, fwer=None):
+#     args = skellam_inputs(counts, model, alpha, jmin, fwer)
+#     return haar_threshold_pool(args)
 
 
-def haar_threshold_sphere(counts, model, alpha, jmin=0, fwer=None):
-    a_counts = spherify(counts)
-    a_model = spherify(model)
-    return haar_threshold(a_counts, a_model, alpha, jmin, fwer)
+# def haar_threshold_sphere(counts, model, alpha, jmin=0, fwer=None):
+#     a_counts = spherify(counts)
+#     a_model = spherify(model)
+#     return haar_threshold(a_counts, a_model, alpha, jmin, fwer)
 
 
 def inv_haar_j(J, j, a, h, v, d):
     s = 2 ** (J - j - 1)
-    ah = a + h #numpy.add(a, h)
-    av = a + v #numpy.add(a, v)
-    ad = a + d #numpy.add(a, d)
-    vd = v + d #numpy.add(v, d)
-    hd = h + d #numpy.add(h, d)
-    hv = h + v #numpy.add(h, v)
-    xx = ah + vd #numpy.add(ah, vd)
-    xr = av - hd #numpy.subtract(av, hd)
-    dx = ah - vd #numpy.subtract(ah, vd)
-    dr = ad - hv #numpy.subtract(ad, hv)
+    ah = a + h 
+    av = a + v 
+    ad = a + d 
+    vd = v + d 
+    hd = h + d 
+    hv = h + v 
+    xx = ah + vd 
+    xr = av - hd 
+    dx = ah - vd 
+    dr = ad - hv 
     arr = (
         xx + roll_sphere(xr, 0, s) + roll_sphere(dx, s, 0) + roll_sphere(dr, s, s)
     ) / 16 # 4 terms for each shift times 4 values in summed in each coarse coefficient
@@ -336,29 +321,115 @@ def inv_haar_level(J, j, a, h, v, d, direction=None ):
 def level_key(*keys):
     return '/'.join(map(str, keys))
 
-def run_tipsh(count_data, total_model, alpha, jmin, fwer, filename, poolWorkers = 1):
-    args = skellam_inputs(spherify(count_data), spherify(total_model), alpha, jmin, fwer)
+# def run_tipsh(count_data, total_model, alpha, jmin, fwer, filename, poolWorkers = 1):
+#     args = skellam_inputs(spherify(count_data), spherify(total_model), alpha, jmin, fwer)
     
-    result = haar_threshold_pool(args, poolWorkers=poolWorkers)
+#     result = haar_threshold_pool(args, poolWorkers=poolWorkers)
+
+#     m = mmapdict(filename)
+#     print('Reconstructing difference')
+#     count_rec = inv_haar_sphere(result)
+#     m['count_rec'] = count_rec
+#     ctx = multiprocessing.get_context("fork")
+#     p = ctx.Pool(poolWorkers, maxtasksperchild=1)
+#     with p:
+#         res = []
+#         w = result['wavelet']
+#         for j in range(1, 13):
+#             print('Reconstructing level: ', j)
+#             res.append(p.apply_async(inv_haar_level, (len(w['hs']), j, w['a'], w['hs'][j-1], w['vs'][j-1], w['ds'][j-1])))
+#         for j in range(1, 13):
+#             rec = res[j-1].get()
+#             m[level_key('level_recs', j)] = rec
+#             for d in ['a', 'hs', 'vs', 'ds']:
+#                 m[level_key('wavelet', d, j)] = result['wavelet'][d][j-1]
+#                 m[level_key('pvalue', d, j)] = result['pvalue'][d][j-1]
+#     m['count_data'] = count_data
+#     m['total_model'] = total_model
+#     m.vacuum()
+
+
+def pvalue_inputs(counts, model, jmin=0,):
+    a_counts = numpy.copy(counts)
+    a_model = numpy.copy(model)
+
+    rows, cols = a_counts.shape
+
+    J = int(math.ceil(math.log(max(rows, cols), 2)))
+
+    for j in range(J - 1, jmin - 1, -1):
+        a_counts, h_counts, v_counts, d_counts = haar_1(haar_sums_j(J, j, a_counts))
+
+        sums_model = haar_sums_j(J, j, a_model)
+        a_model, h_model, v_model, d_model = haar_1(sums_model)
+
+        (h1, h2), (v1, v2), (d1, d2) = sums_model
+
+        yield (h_counts, h_model, h1, h2, j, "Horizontal")   
+        yield (v_counts, v_model, v1, v2, j, "Vertical")
+        yield (d_counts, d_model, d1, d2, j, "Diagonal")
+    yield (a_counts, a_model)
+
+
+def run_pvalues(count_data, total_model, jmin, filename, poolWorkers = 1):
+    args = pvalue_inputs(spherify(count_data), spherify(total_model), jmin)
+    
+    result = pvalues_pool(args, poolWorkers=poolWorkers)
 
     m = mmapdict(filename)
-    print('Reconstructing difference')
-    count_rec = inv_haar_sphere(result)
-    m['count_rec'] = count_rec
-    ctx = multiprocessing.get_context("fork")
-    p = ctx.Pool(poolWorkers, maxtasksperchild=1)
-    with p:
-        res = []
-        w = result['wavelet']
-        for j in range(1, 13):
-            print('Reconstructing level: ', j)
-            res.append(p.apply_async(inv_haar_level, (len(w['hs']), j, w['a'], w['hs'][j-1], w['vs'][j-1], w['ds'][j-1])))
-        for j in range(1, 13):
-            rec = res[j-1].get()
-            m[level_key('level_recs', j)] = rec
-            for d in ['a', 'hs', 'vs', 'ds']:
-                m[level_key('wavelet', d, j)] = result['wavelet'][d][j-1]
-                m[level_key('pvalue', d, j)] = result['pvalue'][d][j-1]
+    for j in range(1, 13):
+        for d in ['hs', 'vs', 'ds']:
+            m[level_key('pvalue', d, j)] = result['pvalue'][d][j-1]
+    m[level_key('pvalue', 'a')] = result['pvalue']['a']
     m['count_data'] = count_data
     m['total_model'] = total_model
+    m.vacuum()
+
+
+def threshold_inputs(pvs, alpha_fn, jmin=0):
+    a_counts = spherify(pvs['count_data'])
+    a_model = spherify(pvs['total_model'])
+
+    rows, cols = a_counts.shape
+
+    J = int(math.ceil(math.log(max(rows, cols), 2)))
+
+    for j in range(J - 1, jmin - 1, -1):
+        alpha_j = alpha_fn(j)
+
+        a_counts, h_counts, v_counts, d_counts = haar_1(haar_sums_j(J, j, a_counts))
+
+        a_model, h_model, v_model, d_model = haar_1(haar_sums_j(J, j, a_model))
+
+        yield (h_counts, h_model, pvs[level_key('pvalue', 'hs', J-j)], alpha_j, j, "Horizontal")   
+        yield (v_counts, v_model, pvs[level_key('pvalue', 'vs', J-j)], alpha_j, j, "Vertical")
+        yield (d_counts, d_model, pvs[level_key('pvalue', 'ds', J-j)], alpha_j, j, "Diagonal")
+    yield (a_counts, a_model, pvs[level_key('pvalue', 'a')], alpha_j)
+
+
+def run_threshold(pvalues_filename, alpha_fn, jmin, filename, level_recs = False, poolWorkers = 1):
+    pvs = mmapdict(pvalues_filename, readonly=True)
+    args = threshold_inputs(pvs, alpha_fn, jmin)
+    
+    result = threshold(args)
+
+    m = mmapdict(filename)
+    count_rec = inv_haar_sphere(result)
+    m['count_rec'] = count_rec
+    if level_recs:
+        ctx = multiprocessing.get_context("fork")
+        p = ctx.Pool(poolWorkers, maxtasksperchild=1)
+        with p:
+            res = []
+            w = result['wavelet']
+            for j in range(1, 13):
+                print('Reconstructing level: ', j)
+                res.append(p.apply_async(inv_haar_level, (len(w['hs']), j, w['a'], w['hs'][j-1], w['vs'][j-1], w['ds'][j-1])))
+            for j in range(1, 13):
+                rec = res[j-1].get()
+                m[level_key('level_recs', j)] = rec
+                for d in ['hs', 'vs', 'ds']:
+                    m[level_key('wavelet', d, j)] = result['wavelet'][d][j-1]
+            m[level_key('wavelet', 'a')] = result['wavelet']['a']
+
     m.vacuum()
