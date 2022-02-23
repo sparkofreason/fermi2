@@ -1,9 +1,6 @@
 import fermi.tipsh as tipsh
-from astropy.io import fits
-from astropy.utils.data import get_pkg_data_filename
 from mmappickle.dict import mmapdict
 import datetime
-import numpy
 import time
 
 data = '/home/dave/data/fermi-data'
