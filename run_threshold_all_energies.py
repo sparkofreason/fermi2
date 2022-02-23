@@ -11,7 +11,7 @@ energies = ['100-200mev', '200-500mev', '500-1000mev', '1-2gev', '2-5gev', '5-10
 jmin = 0
 fwer = 'uniform'
 alpha = 1e-6
-level_recs = True
+level_recs = False
 
 counts = mmapdict('counts.mmdpickle', readonly=True)
 total_models = mmapdict('total_models_v02.mmdpickle', readonly=True)

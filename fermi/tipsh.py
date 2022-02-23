@@ -3,16 +3,8 @@ import math
 from mmappickle.dict import mmapdict
 import multiprocessing
 import numpy
-from scipy.stats import poisson, skellam
-import rpy2
-import rpy2.robjects as ro
-from rpy2.robjects.packages import importr
-from rpy2.robjects import numpy2ri
+from scipy.stats import poisson, skellam, norm
 
-numpy2ri.activate()
-
-stats = importr("stats")
-skel = importr("skellam")
 
 # Really just a 2D numpy.roll
 def roll_sphere(arr, lat_roll, lon_roll):
@@ -114,34 +106,25 @@ def skellam_tail(k, mu1, mu2):
 
     if p[small_left].size > 0:
         p[small_left] = skellam.cdf(k[small_left], mu1[small_left], mu2[small_left])
-        # p[small_left] = skel.pskellam(
-        #     k[small_left], mu1[small_left], mu2[small_left], lower_tail=True
-        # )
 
     if p[small_right].size > 0:
         ksr = k[small_right]
         mu1sr = mu1[small_right]
         mu2sr = mu2[small_right]
-        # try:
-        #     p2 = skel.dskellam(ksr, mu1sr, mu2sr)
-        # except:
-        #     p2 = skel.dskellam_sp(ksr, mu1sr, mu2sr)
-        # p1 = skel.pskellam(ksr, mu1sr, mu2sr, lower_tail=False)
         p1 = skellam.sf(ksr, mu1sr, mu2sr)
         p2 = skellam.pmf(ksr, mu1sr, mu2sr)
         p[small_right] =  p1 + p2 
 
     if p[large_left].size > 0:
-        p[large_left] = stats.pnorm(
-            k[large_left], diff_mu[large_left], sigma_mu[large_left], lower_tail=True
+        p[large_left] = norm.cdf(
+            k[large_left], diff_mu[large_left], sigma_mu[large_left]
         )
 
     if p[large_right].size > 0:
-        p[large_right] = stats.pnorm(
+        p[large_right] = norm.sf(
             k[large_right],
             diff_mu[large_right],
             sigma_mu[large_right],
-            lower_tail=False,
         )
 
     return numpy.reshape(p, k.shape)
@@ -151,8 +134,8 @@ def poisson_tail(x, mu):
     p = numpy.ones(x.shape)
     left = x <= mu
     right = x > mu
-    p[left] = stats.ppois(x[left], mu[left])
-    p[right] = stats.ppois(x[right], mu[right], lower_tail=False)
+    p[left] = poisson.cdf(x[left], mu[left])
+    p[right] = poisson.pmf(x[right], mu[right]) + poisson.sf(x[right], mu[right])
     return numpy.reshape(p, x.shape)
 
 
@@ -206,7 +189,7 @@ def pvalues_pool(args, poolWorkers = None):
 
     if (poolWorkers == None):
         # TODO - This is broken.
-        ks = map(threshold1, args)
+        ks = map(pvalues1, args)
     else:
         ctx = multiprocessing.get_context("fork")
         p = ctx.Pool(poolWorkers, maxtasksperchild=1)
@@ -320,33 +303,6 @@ def inv_haar_level(J, j, a, h, v, d, direction=None ):
 
 def level_key(*keys):
     return '/'.join(map(str, keys))
-
-# def run_tipsh(count_data, total_model, alpha, jmin, fwer, filename, poolWorkers = 1):
-#     args = skellam_inputs(spherify(count_data), spherify(total_model), alpha, jmin, fwer)
-    
-#     result = haar_threshold_pool(args, poolWorkers=poolWorkers)
-
-#     m = mmapdict(filename)
-#     print('Reconstructing difference')
-#     count_rec = inv_haar_sphere(result)
-#     m['count_rec'] = count_rec
-#     ctx = multiprocessing.get_context("fork")
-#     p = ctx.Pool(poolWorkers, maxtasksperchild=1)
-#     with p:
-#         res = []
-#         w = result['wavelet']
-#         for j in range(1, 13):
-#             print('Reconstructing level: ', j)
-#             res.append(p.apply_async(inv_haar_level, (len(w['hs']), j, w['a'], w['hs'][j-1], w['vs'][j-1], w['ds'][j-1])))
-#         for j in range(1, 13):
-#             rec = res[j-1].get()
-#             m[level_key('level_recs', j)] = rec
-#             for d in ['a', 'hs', 'vs', 'ds']:
-#                 m[level_key('wavelet', d, j)] = result['wavelet'][d][j-1]
-#                 m[level_key('pvalue', d, j)] = result['pvalue'][d][j-1]
-#     m['count_data'] = count_data
-#     m['total_model'] = total_model
-#     m.vacuum()
 
 
 def pvalue_inputs(counts, model, jmin=0,):
