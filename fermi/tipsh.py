@@ -283,21 +283,24 @@ def inv_haar_sphere(result):
 # I'm missing something here, seems like this should be a lot faster
 def inv_haar_level(J, j, a, h, v, d, direction=None ):
     j = j - 1
-    zs = numpy.zeros(a.shape)
+    zs = 0 #numpy.zeros(a.shape)
     hsp = list(itertools.repeat(zs, J))
     vsp = list(itertools.repeat(zs, J))
     dsp = list(itertools.repeat(zs, J))
-    ap = zs
-    if direction == None:
-        hsp[j] = h
-        vsp[j] = v
-        dsp[j] = d
-    elif direction == 'hs':
-        hsp[j] = h
-    elif direction == 'vs':
-        vsp[j] = v
-    elif direction == 'ds':
-        dsp[j] = d
+    if (j == J):
+        ap = a
+    else:
+        ap = numpy.zeros(a.shape)
+        if direction == None:
+            hsp[j] = h
+            vsp[j] = v
+            dsp[j] = d
+        elif direction == 'hs':
+            hsp[j] = h
+        elif direction == 'vs':
+            vsp[j] = v
+        elif direction == 'ds':
+            dsp[j] = d
         
     return inv_haar_sphere({'wavelet': {'a': ap, 'hs': hsp, 'vs': vsp, 'ds': dsp}})
 
@@ -378,14 +381,17 @@ def run_threshold(pvalues_filename, alpha_fn, jmin, filename, level_recs = False
         with p:
             res = []
             w = result['wavelet']
-            for j in range(1, 13):
-                print('Reconstructing level: ', j)
-                res.append(p.apply_async(inv_haar_level, (len(w['hs']), j, w['a'], w['hs'][j-1], w['vs'][j-1], w['ds'][j-1])))
-            for j in range(1, 13):
-                rec = res[j-1].get()
-                m[level_key('level_recs', j)] = rec
+            J = len(w['hs'])
+            for j in range(1, J + 1):
                 for d in ['hs', 'vs', 'ds']:
                     m[level_key('wavelet', d, j)] = result['wavelet'][d][j-1]
+            for j in range(1, J + 2):
+                print('Reconstructing level: ', j)
+                jj = j-1 if j < J else J - 1
+                res.append(p.apply_async(inv_haar_level, (J, j, w['a'], w['hs'][jj], w['vs'][jj], w['ds'][jj])))
+            for j in range(1, J + 2):
+                rec = res[j-1].get()
+                m[level_key('level_recs', j)] = rec
             m[level_key('wavelet', 'a')] = result['wavelet']['a']
 
     m.vacuum()

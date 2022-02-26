@@ -8,7 +8,7 @@ energies = ['100-200mev', '200-500mev', '500-1000mev', '1-2gev', '2-5gev', '5-10
 jmin = 0
 fwer = 'uniform'
 alpha = 1e-6
-level_recs = False
+level_recs = True
 
 counts = mmapdict('counts.mmdpickle', readonly=True)
 total_models = mmapdict('total_models_v02.mmdpickle', readonly=True)
@@ -23,8 +23,8 @@ else:
 tic = time.time()
 for energy in energies:
     print('----->', energy)
-    pvalues_filename = f"{data}/v02_modified_{date}_{energy}_pvalues.mmdpickle"
-    filename = f"{data}/v02_modified_{date}_{energy}_{fwer}_{alpha}_{level_recs}.mmdpickle"
+    pvalues_filename = f"{data}/v02_modified_2022-02-22_{energy}_pvalues.mmdpickle"
+    filename = f"{data}/v02_modified_2022-02-22_{energy}_{fwer}_{alpha}_{level_recs}.mmdpickle"
     tipsh.run_threshold(pvalues_filename, alpha_fn, jmin, filename, level_recs=level_recs, poolWorkers=8)
 toc = time.time()
 print("Elapsed", toc - tic)
