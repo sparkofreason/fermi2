@@ -1,0 +1,13 @@
+all-energies.ipynb filter=lfs diff=lfs merge=lfs -text
+all_energies_results.ipynb filter=lfs diff=lfs merge=lfs -text
+fermi-bubbles-tipsh.ipynb filter=lfs diff=lfs merge=lfs -text
+fermi.ipynb filter=lfs diff=lfs merge=lfs -text
+skellam.ipynb filter=lfs diff=lfs merge=lfs -text
+.ipynb_checkpoints/all-energies-checkpoint.ipynb filter=lfs diff=lfs merge=lfs -text
+.ipynb_checkpoints/all_energies_results-checkpoint.ipynb filter=lfs diff=lfs merge=lfs -text
+.ipynb_checkpoints/fermi-bubbles-tipsh-checkpoint.ipynb filter=lfs diff=lfs merge=lfs -text
+.ipynb_checkpoints/fermi-checkpoint.ipynb filter=lfs diff=lfs merge=lfs -text
+.ipynb_checkpoints/skellam-checkpoint.ipynb filter=lfs diff=lfs merge=lfs -text
+*.ipynb filter=lfs diff=lfs merge=lfs -text
+.ipynb_checkpoints/*.ipynb filter=lfs diff=lfs merge=lfs -text
+*.html filter=lfs diff=lfs merge=lfs -text
